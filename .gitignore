@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment
+.venv/
+venv/
+env/
+*.env
+
+# Logs
+*.log
+*.out
+*.err
+
+# Training outputs
+runs/
+outputs/
+checkpoints/
+wandb/
+tensorboard/
+
+# Model checkpoints
+*.pt
+*.pth
+*.ckpt
+*.bin
+*.safetensors
+
+# Profiler traces
+*.trace.json
+*.json.gz
+experiments/raw_traces/
+
+# Temporary files
+.DS_Store
+.vscode/
+.idea/
