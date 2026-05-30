@@ -55,22 +55,35 @@ MiniTrainSys/
 ├── README.md
 ├── requirements.txt
 ├── configs/
-│   ├── single_gpu.yaml
-│   ├── ddp_2gpu.yaml
-│   └── fsdp_2gpu.yaml
+│   ├── single_gpu.yaml              # Single GPU FP32 baseline
+│   ├── single_gpu_amp.yaml          # Single GPU + AMP
+│   ├── single_gpu_checkpoint.yaml   # Single GPU + Activation Checkpointing
+│   ├── single_gpu_grad_accum.yaml   # Single GPU + Gradient Accumulation
+│   ├── ddp_2gpu.yaml                # DDP 2 GPU FP32
+│   ├── fsdp_2gpu.yaml               # FSDP 2 GPU FP32
+│   ├── fsdp_2gpu_amp.yaml           # FSDP + autocast AMP
+│   └── fsdp_2gpu_mp.yaml            # FSDP + MixedPrecision
 ├── models/
-│   └── tiny_transformer.py
+│   └── tiny_transformer.py          # 小型 Transformer 语言模型（~17M 参数）
 ├── train/
-│   ├── train_single.py
-│   ├── train_ddp.py
-│   └── train_fsdp.py
+│   ├── utils.py                     # 公共工具（配置、数据、学习率、指标）
+│   ├── train_single.py              # Single GPU 训练
+│   ├── train_ddp.py                 # DDP 训练
+│   ├── train_fsdp.py                # FSDP 训练
+│   └── train_mini_fsdp.py           # mini-FSDP 训练
 ├── communication/
-│   ├── all_reduce_bench.py
-│   ├── all_gather_bench.py
-│   └── reduce_scatter_bench.py
+│   ├── utils.py                     # 通信 benchmark 公共工具
+│   ├── all_reduce_bench.py          # all-reduce benchmark
+│   ├── all_gather_bench.py          # all-gather benchmark
+│   └── reduce_scatter_bench.py      # reduce-scatter benchmark
 ├── profiler/
-│   ├── torch_profiler_runner.py
-│   └── memory_tracker.py
+│   ├── torch_profiler_runner.py     # torch.profiler 封装
+│   └── memory_tracker.py            # 显存追踪器
+├── mini_fsdp/
+│   ├── __init__.py
+│   ├── shard.py                     # 参数分片/All-Gather/Reduce-Scatter
+│   ├── wrapper.py                   # MiniFSDP 包装器
+│   └── parallel_linear.py           # ColumnParallelLinear / RowParallelLinear
 ├── scripts/
 │   ├── run_single.sh
 │   ├── run_ddp_2gpu.sh
@@ -79,11 +92,13 @@ MiniTrainSys/
 ├── experiments/
 │   └── figures/
 ├── docs/
-│   ├── ddp_vs_fsdp.md
-│   ├── fsdp_mechanism.md
-│   ├── communication_analysis.md
-│   ├── profiler_report.md
-│   └── roadmap.md
+│   ├── ddp_vs_fsdp.md               # DDP vs FSDP 对比分析
+│   ├── fsdp_mechanism.md            # FSDP 机制解析
+│   ├── communication_analysis.md    # 通信算子分析
+│   ├── profiler_report.md           # Profiler 使用说明
+│   ├── mini_fsdp.md                 # mini-FSDP 原型说明
+│   ├── tensor_parallel.md           # Tensor Parallel 原型说明
+│   └── roadmap.md                   # 项目进度记录
 └── tests/
 ```
 
