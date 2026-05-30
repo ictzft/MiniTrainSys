@@ -4,7 +4,10 @@
 
 MiniTrainSys 是一个面向双 GPU 环境的轻量级分布式训练系统与性能剖析框架。
 
-本项目基于 PyTorch 构建，目标不是训练超大规模模型，而是在有限 GPU 资源下系统分析深度学习训练中的显存占用、训练吞吐、通信开销和性能瓶颈。项目主要支持 single GPU、DDP、FSDP、通信算子 benchmark 和 torch.profiler 性能分析，并计划进一步扩展 mini-FSDP 与 Megatron-style Tensor Parallel 原型。
+本项目基于 PyTorch 构建，目标不是训练超大规模模型，而是在有限 GPU 资源下系统分析深度学习训练中的显存占用、训练吞吐、通信开销和性能瓶颈。
+
+项目主要支持 single GPU、DDP、FSDP、通信算子 benchmark 和 torch.profiler 性能分析，
+并计划进一步扩展 mini-FSDP 与 Megatron-style Tensor Parallel 原型。
 
 本项目适合作为 AI Infra、深度学习系统、高性能训练和分布式训练方向的学习与简历项目。
 
@@ -270,7 +273,9 @@ bash scripts/run_comm_bench.sh
 
 ## 当前状态
 
-项目仓库结构已搭建完成，README、requirements.txt、.gitignore 已就绪。所有源码文件（`models/`、`train/`、`communication/`、`profiler/`、`configs/`、`scripts/`、`docs/`）当前为空，需要逐步实现。
+项目仓库结构已搭建完成，README、requirements.txt、.gitignore 已就绪。
+
+所有源码文件（`models/`、`train/`、`communication/`、`profiler/`、`configs/`、`scripts/`、`docs/`）当前为空，需要逐步实现。
 
 ---
 
@@ -341,8 +346,10 @@ bash scripts/run_comm_bench.sh
 - 配置 `configs/fsdp_2gpu.yaml`，脚本 `scripts/run_fsdp_2gpu.sh`
 - **FSDP 实验重点**（不只是看快慢）：
   - **显存下降验证**：同样 batch size 下，FSDP peak memory 应显著低于 DDP，因为参数、梯度、优化器状态都做了分片
-  - **通信/调度开销上升**：FSDP 每个 forward/backward 需要额外的 all-gather 收集参数、reduce-scatter 拆分梯度，step time 通常高于 DDP
-  - **更大 batch / 更大模型的能力**：关键实验——逐步增大 batch size，找到 DDP OOM 的上限，验证 FSDP 能继续训练；或者增大模型参数量，验证 FSDP 能承载 DDP 跑不了的模型
+  - **通信/调度开销上升**：FSDP 每个 forward/backward 需要额外的 all-gather 收集参数、
+    reduce-scatter 拆分梯度，step time 通常高于 DDP
+  - **更大 batch / 更大模型的能力**：关键实验——逐步增大 batch size，找到 DDP OOM 的上限，
+    验证 FSDP 能继续训练；或者增大模型参数量，验证 FSDP 能承载 DDP 跑不了的模型
   - 记录 `oom_batch_size`（触发 OOM 的 batch size）作为核心对比指标
 
 **Step 2.3 — 指标收集与对比**
@@ -423,7 +430,8 @@ bash scripts/run_comm_bench.sh
 
 **导出产物：**
 
-- **Chrome trace / JSON**：`torch.profiler` 支持导出 Chrome JSON trace 文件，可在 `chrome://tracing` 中加载，查看每个 CUDA kernel、CPU operation 的时间线
+- **Chrome trace / JSON**：`torch.profiler` 支持导出 Chrome JSON trace 文件，
+  可在 `chrome://tracing` 中加载，查看每个 CUDA kernel、CPU operation 的时间线
 - **TensorBoard 可视化**：导出到 TensorBoard plugin，查看 op 表格、kernel 统计、memory timeline
 - **CSV 统计表**：提取关键 op 的 CPU/CUDA 耗时，输出到 `experiments/`
 
