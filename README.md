@@ -273,9 +273,15 @@ bash scripts/run_comm_bench.sh
 
 ## 当前状态
 
-项目仓库结构已搭建完成，README、requirements.txt、.gitignore 已就绪。
+**Phase 1 已完成** — Single GPU 训练跑通。
 
-所有源码文件（`models/`、`train/`、`communication/`、`profiler/`、`configs/`、`scripts/`、`docs/`）当前为空，需要逐步实现。
+已实现：
+- `models/tiny_transformer.py`：小型 Transformer 语言模型（~17M 参数）
+- `configs/single_gpu.yaml`：训练配置
+- `train/train_single.py`：Single GPU 训练脚本，记录 step_time / throughput / peak_memory
+- `scripts/run_single.sh`：启动脚本
+
+待实现：Phase 2（DDP / FSDP）及后续阶段，详见下方开发计划。
 
 ---
 
@@ -283,7 +289,7 @@ bash scripts/run_comm_bench.sh
 
 按以下 Phase 顺序开发，每个 Phase 完成后提交一次，保持 git 历史清晰。
 
-### Phase 1：基础训练跑通（最优先）
+### Phase 1：基础训练跑通（最优先） ✅ 已完成
 
 > **目标：** 单卡训练能跑起来，拿到 baseline 数据。
 
