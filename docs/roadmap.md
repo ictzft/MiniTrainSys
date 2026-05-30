@@ -74,13 +74,56 @@
 
 ---
 
-## Phase 3：进阶训练技术实验 🔲
+## Phase 3：进阶训练技术实验 ✅
 
-**状态：** 待实现
+**完成时间：** 2026-05-30
 
-- AMP / FP16 Mixed Precision（V100 Tensor Core 加速）
-- Activation Checkpointing（显存换时间）
-- Gradient Accumulation（小显存模拟大 batch）
+### 实现方式
+
+在三个训练脚本中统一加入 AMP、Activation Checkpointing、Gradient Accumulation 支持，
+通过 YAML 配置开关控制，不需要单独的脚本。
+
+### 已实现
+
+| 技术 | 配置项 | 实验配置文件 |
+|---|---|---|
+| AMP Mixed Precision | `amp.enabled: true` | `configs/single_gpu_amp.yaml` |
+| Activation Checkpointing | `model.use_activation_checkpointing: true` | `configs/single_gpu_checkpoint.yaml` |
+| Gradient Accumulation | `training.gradient_accumulation_steps: N` | `configs/single_gpu_grad_accum.yaml` |
+
+### 公共工具模块
+
+`train/utils.py`：提取配置加载、数据集、学习率调度、指标记录等公共逻辑，三个训练脚本共用。
+
+### AMP 实现要点
+
+- `torch.amp.autocast("cuda")`：前向自动选择 FP16/FP32
+- `torch.amp.GradScaler`：防止 FP16 梯度下溢
+- V100 Tensor Core 原生支持 FP16 矩阵运算，吞吐应有明显提升
+- 输出指标中记录 `amp=true/false`，便于对比
+
+### Activation Checkpointing 实现要点
+
+- `torch.utils.checkpoint.checkpoint` 包装每个 `TransformerEncoderLayer`
+- 前向时不保存中间激活值，反向时重新计算
+- 显存节省（不存激活值），但反向耗时增加约 15%~30%
+- V100 显存有限（16GB/32GB），效果比 H100 更明显
+
+### Gradient Accumulation 实现要点
+
+- 每步执行 N 次 micro-batch 前向/反向，loss 除以 N
+- 累积 N 步后才执行 optimizer.step()
+- 有效 batch_size = micro_batch × accum_steps × world_size
+- 显存占用 ≈ micro_batch，梯度效果 ≈ 有效 batch_size
+
+### 对比实验矩阵
+
+| 实验 | 配置文件 | 对比目标 |
+|---|---|---|
+| FP32 baseline | `single_gpu.yaml` | 基准线 |
+| AMP | `single_gpu_amp.yaml` | 吞吐提升、显存变化 |
+| Checkpointing | `single_gpu_checkpoint.yaml` | 显存节省、速度损失 |
+| Grad Accum | `single_gpu_grad_accum.yaml` | 大 batch 效果、显存不变 |
 
 ---
 

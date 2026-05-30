@@ -8,6 +8,7 @@ TinyTransformer — 用于分布式训练实验的小型 Transformer 语言模�
 import math
 import torch
 import torch.nn as nn
+from torch.utils.checkpoint import checkpoint
 
 
 class TinyTransformer(nn.Module):
@@ -22,10 +23,12 @@ class TinyTransformer(nn.Module):
         dim_feedforward: int = 1024,
         max_seq_len: int = 512,
         dropout: float = 0.1,
+        use_activation_checkpointing: bool = False,
     ):
         super().__init__()
         self.d_model = d_model
         self.max_seq_len = max_seq_len
+        self.use_activation_checkpointing = use_activation_checkpointing
 
         # Token embedding + 可学习位置编码
         self.token_embedding = nn.Embedding(vocab_size, d_model)
@@ -94,7 +97,16 @@ class TinyTransformer(nn.Module):
         )
 
         # Transformer Encoder
-        x = self.transformer_encoder(x, mask=causal_mask)
+        if self.use_activation_checkpointing:
+            # Activation checkpointing：前向不保存中间激活值，反向时重新计算
+            # 用计算时间换显存，每层额外约 30% 反向时间
+            for layer in self.transformer_encoder.layers:
+                x = checkpoint(
+                    layer, x, causal_mask, None, True,
+                    use_reentrant=False,
+                )
+        else:
+            x = self.transformer_encoder(x, mask=causal_mask)
 
         # 输出 logits
         logits = self.output_head(x)
@@ -129,6 +141,7 @@ def build_model(config: dict) -> TinyTransformer:
         dim_feedforward=model_cfg["dim_feedforward"],
         max_seq_len=model_cfg["max_seq_len"],
         dropout=model_cfg.get("dropout", 0.1),
+        use_activation_checkpointing=model_cfg.get("use_activation_checkpointing", False),
     )
 
 

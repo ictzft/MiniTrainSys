@@ -273,16 +273,17 @@ bash scripts/run_comm_bench.sh
 
 ## 当前状态
 
-**Phase 1、Phase 2 已完成** — Single GPU / DDP / FSDP 三种训练模式均已实现。
+**Phase 1~3 已完成** — 三种训练模式 + 进阶训练技术均已实现。
 
 已实现：
-- `models/tiny_transformer.py`：小型 Transformer 语言模型（~17M 参数）
-- `train/train_single.py`：Single GPU 训练 baseline
-- `train/train_ddp.py`：2-GPU DDP 数据并行训练
-- `train/train_fsdp.py`：2-GPU FSDP 参数分片训练
-- 对应配置文件和启动脚本
+- `models/tiny_transformer.py`：小型 Transformer 语言模型（~17M 参数），支持 activation checkpointing
+- `train/utils.py`：公共工具模块（配置、数据、学习率、指标记录）
+- `train/train_single.py`：Single GPU 训练，支持 AMP / checkpointing / gradient accumulation
+- `train/train_ddp.py`：2-GPU DDP 训练，支持 AMP / checkpointing / gradient accumulation
+- `train/train_fsdp.py`：2-GPU FSDP 训练，支持 AMP / checkpointing / gradient accumulation
+- 6 个配置文件：3 个 baseline + 3 个进阶技术实验
 
-待实现：Phase 3（进阶训练技术）及后续阶段，详见下方开发计划。
+待实现：Phase 4（通信 benchmark）及后续阶段，详见下方开发计划。
 
 ---
 
@@ -365,7 +366,7 @@ bash scripts/run_comm_bench.sh
 - 生成对比表格：Single vs DDP vs FSDP 的 step_time, throughput, peak_memory
 - 额外输出一张 batch_size vs peak_memory 曲线图，直观展示三种模式的显存上限差异
 
-### Phase 3：进阶训练技术实验
+### Phase 3：进阶训练技术实验 ✅ 已完成
 
 > **目标：** 在 V100 上验证 mixed precision、activation checkpointing、gradient accumulation 的工程 trade-off。
 

@@ -1,5 +1,5 @@
-# Single GPU 训练配置（FP32 baseline）
-# 用于建立 baseline，与 AMP / checkpointing / grad_accum / DDP / FSDP 对比
+# Single GPU + AMP Mixed Precision 实验
+# 与 single_gpu.yaml（FP32）对比，验证 V100 Tensor Core 加速效果
 
 model:
   vocab_size: 30522
@@ -21,9 +21,9 @@ training:
   log_interval: 10
   gradient_accumulation_steps: 1
 
-# AMP 关闭（FP32 baseline）
+# AMP 开启
 amp:
-  enabled: false
+  enabled: true
 
 data:
   use_random: true
@@ -33,4 +33,4 @@ data:
 logging:
   log_dir: "experiments/logs"
   save_metrics: true
-  metrics_csv: "experiments/single_gpu_metrics.csv"
+  metrics_csv: "experiments/single_gpu_amp_metrics.csv"

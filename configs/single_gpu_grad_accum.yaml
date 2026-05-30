@@ -1,5 +1,9 @@
-# Single GPU 训练配置（FP32 baseline）
-# 用于建立 baseline，与 AMP / checkpointing / grad_accum / DDP / FSDP 对比
+# Single GPU + Gradient Accumulation 实验
+# 与 single_gpu.yaml 对比，验证小显存模拟大 batch 的效果
+#
+# 有效 batch_size = 8 × 4 = 32
+# 每步只前向/反向 8 个样本，但累积 4 步后才更新参数
+# 显存占用 ≈ batch_size=8，梯度效果 ≈ batch_size=32
 
 model:
   vocab_size: 30522
@@ -13,15 +17,15 @@ model:
 
 training:
   batch_size: 8
+  # 4 步累积 → 有效 batch = 32
+  gradient_accumulation_steps: 4
   max_steps: 1000
   lr: 1.0e-4
   weight_decay: 0.01
   warmup_steps: 100
   grad_clip: 1.0
   log_interval: 10
-  gradient_accumulation_steps: 1
 
-# AMP 关闭（FP32 baseline）
 amp:
   enabled: false
 
@@ -33,4 +37,4 @@ data:
 logging:
   log_dir: "experiments/logs"
   save_metrics: true
-  metrics_csv: "experiments/single_gpu_metrics.csv"
+  metrics_csv: "experiments/single_gpu_grad_accum_metrics.csv"

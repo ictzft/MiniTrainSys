@@ -1,5 +1,5 @@
-# Single GPU 训练配置（FP32 baseline）
-# 用于建立 baseline，与 AMP / checkpointing / grad_accum / DDP / FSDP 对比
+# Single GPU + Activation Checkpointing 实验
+# 与 single_gpu.yaml 对比，验证显存节省和速度损失
 
 model:
   vocab_size: 30522
@@ -9,7 +9,10 @@ model:
   dim_feedforward: 1024
   max_seq_len: 512
   dropout: 0.1
-  use_activation_checkpointing: false
+  # Activation checkpointing 开启
+  # 前向不保存中间激活值，反向时重新计算
+  # 用计算时间换显存，反向耗时增加约 15%~30%
+  use_activation_checkpointing: true
 
 training:
   batch_size: 8
@@ -21,7 +24,6 @@ training:
   log_interval: 10
   gradient_accumulation_steps: 1
 
-# AMP 关闭（FP32 baseline）
 amp:
   enabled: false
 
@@ -33,4 +35,4 @@ data:
 logging:
   log_dir: "experiments/logs"
   save_metrics: true
-  metrics_csv: "experiments/single_gpu_metrics.csv"
+  metrics_csv: "experiments/single_gpu_checkpoint_metrics.csv"
