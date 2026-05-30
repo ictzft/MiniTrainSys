@@ -109,7 +109,9 @@ MiniTrainSys/
 │   ├── ...
 │   └── plot_results.py              # 实验结果可视化
 ├── Makefile                         # 便捷命令
-└── pyproject.toml                   # pytest 配置
+├── pyproject.toml                   # pytest 配置
+├── CHANGELOG.md                     # 版本更新记录
+└── LICENSE                          # MIT License
 ```
 
 ---
