@@ -30,27 +30,47 @@
 
 ---
 
-## Phase 2：分布式训练实现 🔲
+## Phase 2：分布式训练实现 ✅
 
-**状态：** 待实现
+**完成时间：** 2026-05-30
 
-### 计划
+### 已实现
 
 | 文件 | 内容 |
 |---|---|
-| `train/train_ddp.py` | DDP 训练脚本（torchrun + NCCL） |
-| `train/train_fsdp.py` | FSDP 训练脚本（参数分片） |
-| `configs/ddp_2gpu.yaml` | DDP 配置 |
-| `configs/fsdp_2gpu.yaml` | FSDP 配置 |
-| `scripts/run_ddp_2gpu.sh` | DDP 启动脚本 |
-| `scripts/run_fsdp_2gpu.sh` | FSDP 启动脚本 |
+| `train/train_ddp.py` | DDP 训练脚本（torchrun + NCCL + DistributedSampler） |
+| `train/train_fsdp.py` | FSDP 训练脚本（FULL_SHARD 参数分片） |
+| `configs/ddp_2gpu.yaml` | DDP 配置（与 single GPU 相同模型） |
+| `configs/fsdp_2gpu.yaml` | FSDP 配置（与 single GPU 相同模型） |
+| `scripts/run_ddp_2gpu.sh` | DDP 启动脚本（torchrun） |
+| `scripts/run_fsdp_2gpu.sh` | FSDP 启动脚本（torchrun） |
 
-### 实验重点
+### DDP 实现要点
 
-- DDP vs Single GPU：吞吐提升、梯度同步开销
-- FSDP vs DDP：显存下降、通信/调度开销上升
-- FSDP 核心价值：能支持更大 batch / 更大模型
-- 记录 oom_batch_size，输出 batch_size vs peak_memory 曲线
+- `torchrun --nproc_per_node=2` 启动，NCCL 后端
+- `DistributedSampler` 按 rank 切分数据，每个 epoch 调用 `set_epoch()` 保证 shuffle
+- `DDP` 包装模型，反向传播自动 all-reduce 同步梯度
+- `dist.barrier()` 同步所有 rank 后计时
+- 总吞吐 = 单卡吞吐 × 卡数
+- 仅 rank 0 输出日志和保存指标
+
+### FSDP 实现要点
+
+- `ShardingStrategy.FULL_SHARD`：参数、梯度、优化器状态全部分片
+- `transformer_auto_wrap_policy`：按 `TransformerEncoderLayer` 分层分片
+- 前向时自动 all-gather 收集完整参数，计算完后释放
+- 反向时自动 reduce-scatter 拆分梯度
+- `use_orig_params=True`：保持参数名一致，便于 optimizer 设置
+- 显存占用应低于 DDP（尤其在模型较大时）
+
+### 实验对比维度
+
+| 指标 | Single GPU | DDP (2GPU) | FSDP (2GPU) |
+|---|---|---|---|
+| step_time | baseline | 应更快（计算并行） | 可能略慢（额外通信） |
+| throughput | baseline | ~1.5-1.8x | ~1.3-1.6x |
+| peak_memory | baseline | ≈single（每卡存完整模型） | 应低于 DDP（参数分片） |
+| oom_batch_size | baseline | ≈single | 应更大（显存更低） |
 
 ---
 

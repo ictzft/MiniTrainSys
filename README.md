@@ -273,15 +273,16 @@ bash scripts/run_comm_bench.sh
 
 ## 当前状态
 
-**Phase 1 已完成** — Single GPU 训练跑通。
+**Phase 1、Phase 2 已完成** — Single GPU / DDP / FSDP 三种训练模式均已实现。
 
 已实现：
 - `models/tiny_transformer.py`：小型 Transformer 语言模型（~17M 参数）
-- `configs/single_gpu.yaml`：训练配置
-- `train/train_single.py`：Single GPU 训练脚本，记录 step_time / throughput / peak_memory
-- `scripts/run_single.sh`：启动脚本
+- `train/train_single.py`：Single GPU 训练 baseline
+- `train/train_ddp.py`：2-GPU DDP 数据并行训练
+- `train/train_fsdp.py`：2-GPU FSDP 参数分片训练
+- 对应配置文件和启动脚本
 
-待实现：Phase 2（DDP / FSDP）及后续阶段，详见下方开发计划。
+待实现：Phase 3（进阶训练技术）及后续阶段，详见下方开发计划。
 
 ---
 
@@ -336,7 +337,7 @@ bash scripts/run_comm_bench.sh
   python train/train_single.py --config configs/single_gpu.yaml
   ```
 
-### Phase 2：分布式训练实现
+### Phase 2：分布式训练实现 ✅ 已完成
 
 > **目标：** DDP 和 FSDP 训练跑通，与 single GPU 对比。
 
