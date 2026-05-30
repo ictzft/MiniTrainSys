@@ -247,13 +247,22 @@ bash scripts/run_comm_bench.sh
 
 ## Benchmark Results
 
-当前项目仍处于初始开发阶段，实验结果将在后续补充。
+训练框架与原型功能已完成，benchmark 流程已打通。正式双 GPU 实验结果仍在补充中。
+
+在 V100 上运行以下命令采集数据：
+
+```bash
+bash scripts/run_single.sh          # Single GPU baseline
+bash scripts/run_ddp_2gpu.sh        # DDP 2 GPU
+bash scripts/run_fsdp_2gpu.sh       # FSDP 2 GPU
+bash scripts/run_comm_bench.sh      # 通信算子 benchmark
+```
 
 | Mode | GPUs | Batch Size | Step Time | Throughput | Peak Memory |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Single GPU | 1 | TBD | TBD | TBD | TBD |
-| DDP | 2 | TBD | TBD | TBD | TBD |
-| FSDP | 2 | TBD | TBD | TBD | TBD |
+| Single GPU | 1 | 8 | TBD | TBD | TBD |
+| DDP | 2 | 8 | TBD | TBD | TBD |
+| FSDP | 2 | 8 | TBD | TBD | TBD |
 
 ---
 
@@ -273,7 +282,7 @@ bash scripts/run_comm_bench.sh
 
 ## 当前状态
 
-**Phase 1~7 全部完成** — 所有计划功能均已实现。
+**Phase 1~7 全部完成** — 训练框架与原型功能已全部实现，benchmark 流程已打通。
 
 已实现：
 - `models/tiny_transformer.py`：小型 Transformer 语言模型（~17M 参数），支持 activation checkpointing
@@ -283,6 +292,8 @@ bash scripts/run_comm_bench.sh
 - `mini_fsdp/`：mini-FSDP 参数分片 + Tensor Parallel Linear 原型
 - `configs/`：6 个配置文件（3 baseline + 3 进阶技术实验）
 - `docs/`：7 篇完整技术文档
+
+待补充：正式双 GPU 实验数据（需在 V100 环境下运行）。
 
 ---
 
