@@ -127,14 +127,40 @@
 
 ---
 
-## Phase 4：通信算子 Benchmark 🔲
+## Phase 4：通信算子 Benchmark ✅
 
-**状态：** 待实现
+**完成时间：** 2026-05-30
 
-- all_reduce_bench.py
-- all_gather_bench.py
-- reduce_scatter_bench.py
-- tensor size vs bandwidth / latency 图表
+### 已实现
+
+| 文件 | 内容 |
+|---|---|
+| `communication/utils.py` | 公共工具：分布式环境、计时、CSV 输出、tensor size 列表 |
+| `communication/all_reduce_bench.py` | all-reduce 延迟和带宽测试 |
+| `communication/all_gather_bench.py` | all-gather 延迟和带宽测试 |
+| `communication/reduce_scatter_bench.py` | reduce-scatter 延迟和带宽测试 |
+| `scripts/run_comm_bench.sh` | 统一启动脚本 |
+
+### 测试方案
+
+- Tensor size 范围：1MB, 4MB, 16MB, 64MB, 256MB, 1GB（FP32）
+- 每个 size 预热 10 次，计时 50 次取平均
+- 输出指标：avg_ms, min_ms, max_ms, median_ms, bandwidth (GB/s)
+- 结果保存到 `experiments/` 目录的 CSV 文件
+
+### 通信量计算
+
+| 算子 | 通信量公式 | 对应场景 |
+|---|---|---|
+| all-reduce | 2 × (N-1)/N × tensor_bytes | DDP 梯度同步 |
+| all-gather | (N-1)/N × tensor_bytes | FSDP 前向收集参数 |
+| reduce-scatter | (N-1)/N × tensor_bytes | FSDP 反向拆分梯度 |
+
+### 预期结论
+
+- 小 tensor（1-4MB）：latency-bound，带宽利用率低
+- 大 tensor（256MB-1GB）：bandwidth-bound，接近 NVLink/PCIe 带宽上限
+- all-reduce 延迟 ≈ reduce-scatter + all-gather 延迟之和
 
 ---
 

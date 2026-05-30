@@ -273,17 +273,16 @@ bash scripts/run_comm_bench.sh
 
 ## 当前状态
 
-**Phase 1~3 已完成** — 三种训练模式 + 进阶训练技术均已实现。
+**Phase 1~4 已完成** — 训练模式 + 进阶技术 + 通信 benchmark 均已实现。
 
 已实现：
 - `models/tiny_transformer.py`：小型 Transformer 语言模型（~17M 参数），支持 activation checkpointing
-- `train/utils.py`：公共工具模块（配置、数据、学习率、指标记录）
-- `train/train_single.py`：Single GPU 训练，支持 AMP / checkpointing / gradient accumulation
-- `train/train_ddp.py`：2-GPU DDP 训练，支持 AMP / checkpointing / gradient accumulation
-- `train/train_fsdp.py`：2-GPU FSDP 训练，支持 AMP / checkpointing / gradient accumulation
-- 6 个配置文件：3 个 baseline + 3 个进阶技术实验
+- `train/`：Single GPU / DDP / FSDP 三种训练脚本，支持 AMP / checkpointing / gradient accumulation
+- `communication/`：all-reduce / all-gather / reduce-scatter 通信算子 benchmark
+- `configs/`：6 个配置文件（3 baseline + 3 进阶技术实验）
+- `docs/`：DDP vs FSDP 对比、FSDP 机制解析、通信分析文档
 
-待实现：Phase 4（通信 benchmark）及后续阶段，详见下方开发计划。
+待实现：Phase 5（Profiler）及后续阶段，详见下方开发计划。
 
 ---
 
@@ -401,7 +400,7 @@ bash scripts/run_comm_bench.sh
 
 每个实验输出对比结果到 `experiments/`，并更新对应文档。
 
-### Phase 4：通信算子 Benchmark
+### Phase 4：通信算子 Benchmark ✅ 已完成
 
 > **目标：** 量化分析分布式训练中的通信开销，理解 DDP/FSDP 的底层通信模式。
 
