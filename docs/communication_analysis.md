@@ -71,19 +71,44 @@ all-reduce = reduce-scatter + all-gather
 
 即：先求和拆分，再收集拼接，效果等价于所有卡求和并广播。
 
-## Benchmark 计划
+## Benchmark 实现
 
-Phase 4 将实现以下 benchmark：
+Phase 4 已实现以下 benchmark：
 
 | 文件 | 测试内容 |
 |---|---|
+| `communication/utils.py` | 公共工具：分布式环境、计时、CSV 输出 |
 | `communication/all_reduce_bench.py` | all-reduce 延迟和带宽 |
 | `communication/all_gather_bench.py` | all-gather 延迟和带宽 |
 | `communication/reduce_scatter_bench.py` | reduce-scatter 延迟和带宽 |
+| `scripts/run_comm_bench.sh` | 统一启动脚本 |
 
-测试 tensor size 范围：1MB, 4MB, 16MB, 64MB, 256MB, 1GB
+### 测试方案
 
-预期结论：
-- 小 tensor：latency-bound，带宽利用率低
-- 大 tensor：bandwidth-bound，接近 NVLink/PCIe 带宽上限
+- Tensor size：1MB, 4MB, 16MB, 64MB, 256MB, 1GB（FP32）
+- 每个 size 预热 10 次，计时 50 次取平均
+- 输出指标：avg_ms, min_ms, max_ms, median_ms, bandwidth (GB/s)
+
+### 运行方式
+
+```bash
+bash scripts/run_comm_bench.sh        # 默认 2 GPU
+bash scripts/run_comm_bench.sh 4      # 4 GPU
+```
+
+### 输出文件
+
+```
+experiments/all_reduce_bench.csv
+experiments/all_gather_bench.csv
+experiments/reduce_scatter_bench.csv
+```
+
+CSV 字段：tensor_size, num_elements, tensor_bytes, avg_ms, min_ms, max_ms, median_ms, bandwidth_gb_s, world_size
+
+### 预期结论
+
+- 小 tensor（1-4MB）：latency-bound，带宽利用率低
+- 大 tensor（256MB-1GB）：bandwidth-bound，接近 NVLink/PCIe 带宽上限
+- all-reduce 延迟 ≈ reduce-scatter + all-gather 延迟之和
 - 2 GPU NVLink 下，大 tensor 带宽可达 ~20-30 GB/s
