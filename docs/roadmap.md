@@ -228,9 +228,36 @@ experiments/logs/memory_timeline.csv          # 显存时间线
 
 ---
 
-## Phase 7：高级扩展 🔲
+## Phase 7：高级扩展 ✅
 
-**状态：** 待实现（可选）
+**完成时间：** 2026-05-30
 
-- mini-FSDP 原型
-- Megatron-style Tensor Parallel Linear
+### mini-FSDP 原型
+
+| 文件 | 内容 |
+|---|---|
+| `mini_fsdp/__init__.py` | 模块入口 |
+| `mini_fsdp/shard.py` | 参数分片/All-Gather/Reduce-Scatter 工具 |
+| `mini_fsdp/wrapper.py` | MiniFSDP 包装器 |
+| `train/train_mini_fsdp.py` | mini-FSDP 训练脚本 |
+
+核心流程：参数 flatten → 分片 → 前向 all-gather → 计算 → 释放 → 反向 all-gather + reduce-scatter → 更新分片
+
+与 PyTorch FSDP 的区别：flatten 整个模型 vs 按层分片，峰值显存更高但代码更简单。
+
+### Tensor Parallel Linear 原型
+
+| 文件 | 内容 |
+|---|---|
+| `mini_fsdp/parallel_linear.py` | ColumnParallelLinear + RowParallelLinear |
+
+ColumnParallel：权重按输出维度切分，前向无通信，反向 all-reduce
+RowParallel：权重按输入维度切分，前向 all-reduce，反向无通信
+组合：ColumnParallel → RowParallel，各方向只需一次 all-reduce
+
+### 文档
+
+| 文档 | 内容 |
+|---|---|
+| `docs/mini_fsdp.md` | mini-FSDP 原理、实现、与 PyTorch FSDP 对比 |
+| `docs/tensor_parallel.md` | Tensor Parallel 原理、两种并行方式、自定义 Autograd |

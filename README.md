@@ -273,17 +273,16 @@ bash scripts/run_comm_bench.sh
 
 ## 当前状态
 
-**Phase 1~6 已完成** — 训练模式 + 进阶技术 + 通信 benchmark + Profiler + 文档均已实现。
+**Phase 1~7 全部完成** — 所有计划功能均已实现。
 
 已实现：
 - `models/tiny_transformer.py`：小型 Transformer 语言模型（~17M 参数），支持 activation checkpointing
-- `train/`：Single GPU / DDP / FSDP 三种训练脚本，支持 AMP / checkpointing / gradient accumulation / profiler
+- `train/`：Single GPU / DDP / FSDP / mini-FSDP 四种训练脚本
 - `communication/`：all-reduce / all-gather / reduce-scatter 通信算子 benchmark
 - `profiler/`：torch.profiler 封装 + 显存追踪器
+- `mini_fsdp/`：mini-FSDP 参数分片 + Tensor Parallel Linear 原型
 - `configs/`：6 个配置文件（3 baseline + 3 进阶技术实验）
-- `docs/`：5 篇完整技术文档（DDP vs FSDP、FSDP 机制、通信分析、Profiler 报告、进度记录）
-
-待实现：Phase 7（mini-FSDP / Tensor Parallel 高级扩展），详见下方开发计划。
+- `docs/`：7 篇完整技术文档
 
 ---
 
@@ -467,10 +466,18 @@ bash scripts/run_comm_bench.sh
 - `docs/profiler_report.md`：Profiler 工具说明、使用方式、分析维度
 - `docs/roadmap.md`：各 Phase 进度记录和实现细节
 
-### Phase 7：高级扩展（可选）
+### Phase 7：高级扩展 ✅ 已完成
 
 - **mini-FSDP 原型**：不依赖 PyTorch FSDP，手动实现参数分片、all-gather 前向、reduce-scatter 反向
-- **Megatron-style Tensor Parallel**：实现 `ColumnParallelLinear` 和 `RowParallelLinear`，理解张量并行通信模式
+  - `mini_fsdp/shard.py`：参数分片/All-Gather/Reduce-Scatter 工具
+  - `mini_fsdp/wrapper.py`：MiniFSDP 包装器
+  - `train/train_mini_fsdp.py`：mini-FSDP 训练脚本
+  - `docs/mini_fsdp.md`：原理说明和与 PyTorch FSDP 对比
+
+- **Megatron-style Tensor Parallel**：实现 `ColumnParallelLinear` 和 `RowParallelLinear`
+  - `mini_fsdp/parallel_linear.py`：列并行 + 行并行线性层
+  - 自定义 Autograd Function 控制前向/反向通信
+  - `docs/tensor_parallel.md`：原理说明和使用方式
 
 ### 推荐开发顺序
 
