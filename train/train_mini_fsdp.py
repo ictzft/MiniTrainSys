@@ -99,6 +99,7 @@ def train(config: dict, local_rank: int):
 
     for step in range(1, train_cfg["max_steps"] + 1):
         sampler.set_epoch(step)
+        torch.cuda.synchronize()
         t_start = time.perf_counter()
 
         try:
@@ -125,6 +126,7 @@ def train(config: dict, local_rank: int):
         fsdp_model.step(optimizer)
 
         dist.barrier()
+        torch.cuda.synchronize()
         t_end = time.perf_counter()
         step_time = t_end - t_start
 

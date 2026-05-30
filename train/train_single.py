@@ -93,6 +93,8 @@ def train(config: dict, profile: bool = False):
         if memory_tracker:
             memory_tracker.step_start(step)
 
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
         t_start = time.perf_counter()
 
         # ---- Gradient Accumulation 循环 ----
@@ -127,6 +129,8 @@ def train(config: dict, profile: bool = False):
         scaler.update()
         optimizer.zero_grad()
 
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
         t_end = time.perf_counter()
         step_time = t_end - t_start
 

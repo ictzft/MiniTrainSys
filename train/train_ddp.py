@@ -137,6 +137,7 @@ def train(config: dict, local_rank: int, profile: bool = False):
             profiler.step_start(step)
         if memory_tracker:
             memory_tracker.step_start(step)
+        torch.cuda.synchronize()
         t_start = time.perf_counter()
 
         # ---- Gradient Accumulation 循环 ----
@@ -172,6 +173,7 @@ def train(config: dict, local_rank: int, profile: bool = False):
         optimizer.zero_grad()
 
         dist.barrier()
+        torch.cuda.synchronize()
         t_end = time.perf_counter()
         step_time = t_end - t_start
 
