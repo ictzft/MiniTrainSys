@@ -338,40 +338,108 @@ bash scripts/run_comm_bench.sh
 **Step 2.2 — FSDP 训练** (`train/train_fsdp.py`)
 
 - `FullyShardedDataParallel` 包装模型，`ShardingStrategy.FULL_SHARD`
-- 对比 FSDP vs DDP 显存占用差异
 - 配置 `configs/fsdp_2gpu.yaml`，脚本 `scripts/run_fsdp_2gpu.sh`
+- **FSDP 实验重点**（不只是看快慢）：
+  - **显存下降验证**：同样 batch size 下，FSDP peak memory 应显著低于 DDP，因为参数、梯度、优化器状态都做了分片
+  - **通信/调度开销上升**：FSDP 每个 forward/backward 需要额外的 all-gather 收集参数、reduce-scatter 拆分梯度，step time 通常高于 DDP
+  - **更大 batch / 更大模型的能力**：关键实验——逐步增大 batch size，找到 DDP OOM 的上限，验证 FSDP 能继续训练；或者增大模型参数量，验证 FSDP 能承载 DDP 跑不了的模型
+  - 记录 `oom_batch_size`（触发 OOM 的 batch size）作为核心对比指标
 
 **Step 2.3 — 指标收集与对比**
 
 - 统一 metrics 记录模块，输出 CSV 到 `experiments/`
 - 生成对比表格：Single vs DDP vs FSDP 的 step_time, throughput, peak_memory
+- 额外输出一张 batch_size vs peak_memory 曲线图，直观展示三种模式的显存上限差异
 
 ### Phase 3：进阶训练技术实验
 
-> **目标：** 验证 mixed precision、activation checkpointing、gradient accumulation 的效果。
+> **目标：** 在 V100 上验证 mixed precision、activation checkpointing、gradient accumulation 的工程 trade-off。
 
-- **Mixed Precision**：`torch.cuda.amp.autocast` + `GradScaler`，对比 fp32 vs fp16 的吞吐和显存
-- **Activation Checkpointing**：`torch.utils.checkpoint` 对 Transformer 层做 checkpoint，对比显存节省和速度损失
-- **Gradient Accumulation**：多步累积梯度再 update，模拟更大 batch size
+**3.1 — AMP / FP16 Mixed Precision**
+
+- V100 配备 Tensor Core，原生支持 FP16 矩阵运算，是做 mixed precision 实验的理想硬件
+- 使用 `torch.cuda.amp.autocast` + `GradScaler`，对比 FP32 vs AMP 的：
+  - **吞吐**：AMP 应有明显加速（Tensor Core 利用率提升）
+  - **显存**：FP16 激活值占显存约一半，peak memory 应下降
+  - **稳定性**：观察 loss 曲线是否一致，GradScaler 是否有溢出（scale 值变化）
+- 在 Single GPU 和 DDP 两种模式下分别跑 AMP，记录对比结果
+
+**3.2 — Activation Checkpointing**
+
+- 使用 `torch.utils.checkpoint.checkpoint` 对 Transformer 层做前向 checkpoint
+- 原理：前向时不保存中间激活值，反向时重新计算，用计算时间换显存
+- V100 显存有限（16GB/32GB），这类实验比在 H100 上更容易看出差异
+- 对比指标：
+  - **显存节省**：checkpoint vs 不 checkpoint 的 peak memory 差异
+  - **速度损失**：反向重计算带来的额外耗时（通常 15%~30%）
+  - **可训练模型变大**：checkpoint 后能否用更大的模型或 batch size
+
+**3.3 — Gradient Accumulation**
+
+- 实现多步累积梯度再执行一次 optimizer.step()，模拟更大 batch size 的效果
+- 例如 `accumulation_steps=4` + `batch_size=4` 等效于 `batch_size=16` 的梯度
+- V100 显存有限，这是"小显存模拟大 batch"的标准工程手段
+- 对比指标：
+  - **等效 batch size 下的显存**：accumulation 只增加少量梯度缓冲，远小于直接放大 batch
+  - **训练速度**：总 step 数增加，但每个 step 更轻量
+  - **收敛性**：对比直接大 batch vs accumulation 的 loss 曲线
 
 每个实验输出对比结果到 `experiments/`，并更新对应文档。
 
 ### Phase 4：通信算子 Benchmark
 
-> **目标：** 量化分析分布式训练中的通信开销。
+> **目标：** 量化分析分布式训练中的通信开销，理解 DDP/FSDP 的底层通信模式。
 
-- `all_reduce_bench.py` / `all_gather_bench.py` / `reduce_scatter_bench.py`：测试不同 tensor size 下的延迟和带宽
-- 统一 benchmark 框架：遍历多种 tensor size，输出 CSV
+三个通信算子分别对应不同的训练场景：
+
+| 算子 | 对应场景 | 说明 |
+|---|---|---|
+| all-reduce | DDP 梯度同步 | 每个 rank 持有完整梯度，all-reduce 求和后各 rank 得到相同结果 |
+| all-gather | FSDP 前向/反向 | 每个 rank 持有参数分片，前向时 all-gather 收集完整参数 |
+| reduce-scatter | FSDP 梯度反分片 | 反向时 reduce-scatter 将梯度按 rank 拆分并求和 |
+
+**实现要求：**
+
+- 每个 benchmark 遍历多种 tensor size（如 1MB, 4MB, 16MB, 64MB, 256MB, 1GB），测试延迟（ms）和带宽（GB/s）
+- 每个 size 跑多次取平均，输出 CSV 到 `experiments/`
+- 生成一张 **tensor size vs bandwidth / latency 的图表**，直观展示通信性能曲线
 - 启动脚本 `scripts/run_comm_bench.sh`
+
+**预期结论：**
+
+- 小 tensor：latency-bound，带宽利用率低
+- 大 tensor：bandwidth-bound，接近 NVLink / PCIe 带宽上限
+- all-reduce = reduce-scatter + all-gather，理论上延迟约为两者之和
 
 ### Phase 5：Profiler 性能分析
 
-> **目标：** 用 torch.profiler 深入分析训练瓶颈。
+> **目标：** 用 torch.profiler 深入分析训练瓶颈，量化每个阶段的耗时构成。
+
+**实现方式：**
 
 - `torch_profiler_runner.py`：封装 profiler 启动、配置和结果导出
-- `memory_tracker.py`：`torch.cuda.memory_stats()` 跟踪显存变化
-- 在训练脚本中集成 profiler，生成 Chrome trace 和 TensorBoard 可视化
-- 编写 `docs/profiler_report.md` 分析报告
+- `memory_tracker.py`：`torch.cuda.memory_stats()` 跟踪显存变化曲线
+- 在训练脚本中集成 profiler，抽样 10~30 个 step 进行 profiling
+
+**导出产物：**
+
+- **Chrome trace / JSON**：`torch.profiler` 支持导出 Chrome JSON trace 文件，可在 `chrome://tracing` 中加载，查看每个 CUDA kernel、CPU operation 的时间线
+- **TensorBoard 可视化**：导出到 TensorBoard plugin，查看 op 表格、kernel 统计、memory timeline
+- **CSV 统计表**：提取关键 op 的 CPU/CUDA 耗时，输出到 `experiments/`
+
+**分析维度：**
+
+| 维度 | 分析内容 |
+|---|---|
+| forward 耗时 | 各层计算时间、attention vs FFN 占比 |
+| backward 耗时 | 反向计算时间、与 forward 的比例 |
+| optimizer step | Adam/SGD 更新耗时 |
+| communication | all-reduce / all-gather / reduce-scatter 在总耗时中的占比 |
+| dataloader | 数据加载是否成为瓶颈（CPU-bound?） |
+| CUDA kernel | 哪些 kernel 占用最多 GPU 时间，是否有 kernel fusion 机会 |
+| memory | 显存随 step 的变化曲线，峰值出现在哪个阶段 |
+
+编写 `docs/profiler_report.md`，用图表和数据说明训练瓶颈在哪里。
 
 ### Phase 6：文档与实验报告
 
