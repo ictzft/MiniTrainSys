@@ -1,0 +1,43 @@
+# 2-GPU FSDP 训练配置 — FSDP MixedPrecision 模式
+#
+# 与 fsdp_2gpu_amp.yaml 的区别：
+#   - autocast AMP：只在计算时用 FP16，通信仍用 FP32
+#   - FSDP MixedPrecision：all-gather/reduce-scatter 也用 FP16，通信量减半
+#
+# 用法：
+#   torchrun --nproc_per_node=2 train/train_fsdp.py --config configs/fsdp_2gpu_mp.yaml
+
+model:
+  vocab_size: 30522
+  d_model: 256
+  nhead: 8
+  num_layers: 4
+  dim_feedforward: 1024
+  max_seq_len: 512
+  dropout: 0.1
+  use_activation_checkpointing: false
+
+training:
+  batch_size: 8
+  max_steps: 1000
+  lr: 1.0e-4
+  weight_decay: 0.01
+  warmup_steps: 100
+  grad_clip: 1.0
+  log_interval: 10
+  gradient_accumulation_steps: 1
+
+# FSDP MixedPrecision：在 all-gather/reduce-scatter 时也用 FP16
+amp:
+  enabled: true
+  fsdp_mixed_precision: true
+
+data:
+  use_random: true
+  seq_len: 512
+  vocab_size: 30522
+
+logging:
+  log_dir: "experiments/logs"
+  save_metrics: true
+  metrics_csv: "experiments/fsdp_2gpu_mp_metrics.csv"

@@ -1,10 +1,17 @@
 """
 FSDP (FullyShardedDataParallel) 训练脚本 — 2 GPU 参数分片。
 
-支持：
-    - AMP mixed precision（配置 amp.enabled=true）
-    - Activation checkpointing（配置 model.use_activation_checkpointing=true）
-    - Gradient accumulation（配置 training.gradient_accumulation_steps=N）
+支持两种 AMP 方式（二选一）：
+    1. autocast AMP：在训练循环中用 torch.amp.autocast，与 DDP 的 AMP 方式一致
+    2. FSDP MixedPrecision：FSDP 原生的混合精度策略，在 all-gather 时自动转为 FP16
+       - 参数 all-gather 用 FP16（减少通信量）
+       - 本地计算用 FP16
+       - 梯度 reduce-scatter 用 FP16
+       - 参数累积/更新用 FP32（保持精度）
+
+配置：
+    amp.enabled=true + amp.fsdp_mixed_precision=false → autocast AMP（默认）
+    amp.enabled=true + amp.fsdp_mixed_precision=true  → FSDP MixedPrecision
 
 用法：
     torchrun --nproc_per_node=2 train/train_fsdp.py --config configs/fsdp_2gpu.yaml
@@ -28,7 +35,7 @@ from functools import partial
 import torch
 import torch.distributed as dist
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp import ShardingStrategy
+from torch.distributed.fsdp import MixedPrecision, ShardingStrategy
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.utils.data.distributed import DistributedSampler
 
@@ -63,17 +70,37 @@ def cleanup_distributed():
 # FSDP 包装
 # ============================================================
 
-def wrap_model_with_fsdp(model: torch.nn.Module) -> FSDP:
+def wrap_model_with_fsdp(
+    model: torch.nn.Module,
+    use_fsdp_mixed_precision: bool = False,
+) -> FSDP:
     """
     用 FSDP 包装模型。
 
-    ShardingStrategy.FULL_SHARD：参数、梯度、优化器状态全部分片，
-    显存节省最大，但通信开销也最大。
+    Args:
+        model: 要包装的模型
+        use_fsdp_mixed_precision: 是否使用 FSDP 原生 MixedPrecision
+
+    FSDP MixedPrecision vs autocast AMP 的区别：
+        - autocast AMP：只在计算时用 FP16，all-gather/reduce-scatter 仍用 FP32
+        - FSDP MixedPrecision：all-gather 也用 FP16，通信量减半
     """
     auto_wrap_policy = partial(
         transformer_auto_wrap_policy,
         transformer_layer_cls={torch.nn.TransformerEncoderLayer},
     )
+
+    # FSDP 原生 MixedPrecision 策略
+    # param：all-gather 时的精度（FP16 减少通信量）
+    # reduce_dtype：reduce-scatter 时的精度
+    # buffer_dtype：forward 输出的精度
+    fsdp_mp = None
+    if use_fsdp_mixed_precision:
+        fsdp_mp = MixedPrecision(
+            param_dtype=torch.float16,
+            reduce_dtype=torch.float16,
+            buffer_dtype=torch.float16,
+        )
 
     return FSDP(
         model,
@@ -81,6 +108,7 @@ def wrap_model_with_fsdp(model: torch.nn.Module) -> FSDP:
         auto_wrap_policy=auto_wrap_policy,
         device_id=torch.cuda.current_device(),
         use_orig_params=True,
+        mixed_precision=fsdp_mp,
     )
 
 
@@ -93,7 +121,11 @@ def train(config: dict, local_rank: int, profile: bool = False):
     log_cfg = config["logging"]
     amp_cfg = config.get("amp", {})
     use_amp = amp_cfg.get("enabled", False)
+    use_fsdp_mp = amp_cfg.get("fsdp_mixed_precision", False)
     accum_steps = train_cfg.get("gradient_accumulation_steps", 1)
+
+    # 两种 AMP 模式互斥：如果用 FSDP MixedPrecision，就不在训练循环中用 autocast
+    use_autocast = use_amp and not use_fsdp_mp
 
     rank = dist.get_rank()
     world_size = dist.get_world_size()
@@ -123,7 +155,16 @@ def train(config: dict, local_rank: int, profile: bool = False):
         ckpt = "ON" if config["model"].get("use_activation_checkpointing") else "OFF"
         print(f"Activation checkpointing: {ckpt}")
 
-    model = wrap_model_with_fsdp(model)
+    # AMP 模式说明
+    if is_main:
+        if use_fsdp_mp:
+            print(f"AMP: FSDP MixedPrecision (param/reduce/buffer=FP16)")
+        elif use_amp:
+            print(f"AMP: autocast (训练循环中 torch.amp.autocast)")
+        else:
+            print(f"AMP: OFF (FP32)")
+
+    model = wrap_model_with_fsdp(model, use_fsdp_mixed_precision=use_fsdp_mp)
 
     # ---- 优化器 ----
     optimizer = torch.optim.AdamW(
@@ -132,10 +173,10 @@ def train(config: dict, local_rank: int, profile: bool = False):
         weight_decay=train_cfg["weight_decay"],
     )
 
-    # ---- AMP ----
-    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
+    # ---- AMP Scaler（仅 autocast 模式需要）----
+    scaler = torch.amp.GradScaler("cuda", enabled=use_autocast)
+
     if is_main:
-        print(f"AMP: {'ON (fp16)' if use_amp else 'OFF (fp32)'}")
         print(f"Gradient accumulation steps: {accum_steps}")
 
     # ---- 数据 ----
@@ -180,7 +221,7 @@ def train(config: dict, local_rank: int, profile: bool = False):
             input_ids = input_ids.to(device)
             labels = labels.to(device)
 
-            with torch.amp.autocast("cuda", enabled=use_amp):
+            with torch.amp.autocast("cuda", enabled=use_autocast):
                 output = model(input_ids, labels=labels)
                 loss = output["loss"] / accum_steps
 
@@ -240,7 +281,7 @@ def train(config: dict, local_rank: int, profile: bool = False):
                 peak_memory_gb=peak_mem,
                 world_size=world_size,
                 sharding_strategy="FULL_SHARD",
-                amp=use_amp,
+                amp_mode="fsdp_mixed_precision" if use_fsdp_mp else ("autocast" if use_amp else "fp32"),
                 accum_steps=accum_steps,
             )
 

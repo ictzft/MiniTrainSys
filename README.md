@@ -287,12 +287,27 @@ bash scripts/run_comm_bench.sh
 ### 复现实验
 
 ```bash
-bash scripts/run_single.sh                          # Single GPU baseline
-bash scripts/run_single.sh configs/single_gpu_amp.yaml  # Single GPU + AMP
-bash scripts/run_ddp_2gpu.sh                        # DDP 2 GPU
-bash scripts/run_fsdp_2gpu.sh                       # FSDP 2 GPU
-bash scripts/run_comm_bench.sh                      # 通信算子 benchmark
+# ---- FP32 baseline ----
+bash scripts/run_single.sh                              # Single GPU FP32
+bash scripts/run_ddp_2gpu.sh                            # DDP FP32
+bash scripts/run_fsdp_2gpu.sh                           # FSDP FP32
+
+# ---- AMP 实验 ----
+python train/train_single.py --config configs/single_gpu_amp.yaml       # Single GPU + autocast AMP
+torchrun --nproc_per_node=2 train/train_ddp.py --config configs/ddp_2gpu.yaml  # DDP + autocast AMP（需改 amp.enabled=true）
+torchrun --nproc_per_node=2 train/train_fsdp.py --config configs/fsdp_2gpu_amp.yaml  # FSDP + autocast AMP
+torchrun --nproc_per_node=2 train/train_fsdp.py --config configs/fsdp_2gpu_mp.yaml   # FSDP + MixedPrecision（通信也用FP16）
+
+# ---- 通信 benchmark ----
+bash scripts/run_comm_bench.sh                          # all-reduce / all-gather / reduce-scatter
 ```
+
+### AMP 两种模式说明
+
+| 模式 | 配置 | 计算精度 | 通信精度 | 适用场景 |
+| --- | --- | --- | --- | --- |
+| autocast AMP | `amp.enabled=true, fsdp_mixed_precision=false` | FP16 | FP32 | 与 DDP 的 AMP 方式一致，公平对比 |
+| FSDP MixedPrecision | `amp.enabled=true, fsdp_mixed_precision=true` | FP16 | FP16 | 通信量减半，FSDP 独有优势 |
 
 ---
 
