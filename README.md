@@ -217,23 +217,137 @@ bash scripts/run_comm_bench.sh
 
 ---
 
-## Roadmap
+## 当前状态
 
-- [ ] 搭建项目仓库结构
-- [ ] 实现 TinyTransformer 模型
-- [ ] 实现 single GPU 训练脚本
-- [ ] 实现 2-GPU DDP 训练脚本
-- [ ] 实现 2-GPU FSDP 训练脚本
-- [ ] 记录 step time、throughput 和 peak memory
-- [ ] 加入 mixed precision 实验
-- [ ] 加入 activation checkpointing 实验
-- [ ] 加入 gradient accumulation 实验
-- [ ] 加入 torch.profiler 性能剖析
-- [ ] 实现 all-reduce / all-gather / reduce-scatter benchmark
-- [ ] 编写 DDP vs FSDP 对比文档
-- [ ] 实现 mini-FSDP 最小原型
-- [ ] 实现 Megatron-style Tensor Parallel Linear 原型
-- [ ] 整理实验结果、图表和项目报告
+项目仓库结构已搭建完成，README、requirements.txt、.gitignore 已就绪。所有源码文件（`models/`、`train/`、`communication/`、`profiler/`、`configs/`、`scripts/`、`docs/`）当前为空，需要逐步实现。
+
+---
+
+## 接下来怎么做
+
+按以下 Phase 顺序开发，每个 Phase 完成后提交一次，保持 git 历史清晰。
+
+### Phase 1：基础训练跑通（最优先）
+
+> **目标：** 单卡训练能跑起来，拿到 baseline 数据。
+
+**Step 1.1 — TinyTransformer 模型** (`models/tiny_transformer.py`)
+
+- 构建小型 Transformer（约 10M~50M 参数），支持配置层数、隐藏维度、注意力头数
+- 用随机数据验证 forward 能正常运行
+- 参考接口：
+  ```python
+  class TinyTransformer(nn.Module):
+      def __init__(self, vocab_size, d_model, nhead, num_layers, dim_feedforward, max_seq_len): ...
+      def forward(self, input_ids, labels=None):  # 返回 logits 和 loss
+  ```
+
+**Step 1.2 — 配置加载** (`configs/`)
+
+- `single_gpu.yaml`：model 超参、训练超参（lr, batch_size, max_steps 等）、日志配置
+- 使用 `pyyaml` 加载，提供 `load_config()` 工具函数
+- 示例：
+  ```yaml
+  model:
+    vocab_size: 30522
+    d_model: 256
+    nhead: 8
+    num_layers: 4
+    dim_feedforward: 1024
+    max_seq_len: 512
+  training:
+    batch_size: 8
+    max_steps: 1000
+    lr: 1.0e-4
+    warmup_steps: 100
+    log_interval: 10
+  ```
+
+**Step 1.3 — Single GPU 训练** (`train/train_single.py`)
+
+- 加载配置 → 构建模型 → 构建 dataloader（先用随机数据）→ 训练循环
+- 每个 log_interval 记录：step_time, loss, throughput (samples/s)
+- 训练结束后打印 peak memory（`torch.cuda.max_memory_allocated()`）
+- 启动脚本 `scripts/run_single.sh`：
+  ```bash
+  #!/bin/bash
+  python train/train_single.py --config configs/single_gpu.yaml
+  ```
+
+### Phase 2：分布式训练实现
+
+> **目标：** DDP 和 FSDP 训练跑通，与 single GPU 对比。
+
+**Step 2.1 — DDP 训练** (`train/train_ddp.py`)
+
+- `torchrun --nproc_per_node=2` 启动，NCCL 后端，`DistributedSampler` 切分数据，`DDP` 包装模型
+- 记录与 single GPU 相同的指标，额外记录通信时间
+- 配置 `configs/ddp_2gpu.yaml`，脚本 `scripts/run_ddp_2gpu.sh`
+
+**Step 2.2 — FSDP 训练** (`train/train_fsdp.py`)
+
+- `FullyShardedDataParallel` 包装模型，`ShardingStrategy.FULL_SHARD`
+- 对比 FSDP vs DDP 显存占用差异
+- 配置 `configs/fsdp_2gpu.yaml`，脚本 `scripts/run_fsdp_2gpu.sh`
+
+**Step 2.3 — 指标收集与对比**
+
+- 统一 metrics 记录模块，输出 CSV 到 `experiments/`
+- 生成对比表格：Single vs DDP vs FSDP 的 step_time, throughput, peak_memory
+
+### Phase 3：进阶训练技术实验
+
+> **目标：** 验证 mixed precision、activation checkpointing、gradient accumulation 的效果。
+
+- **Mixed Precision**：`torch.cuda.amp.autocast` + `GradScaler`，对比 fp32 vs fp16 的吞吐和显存
+- **Activation Checkpointing**：`torch.utils.checkpoint` 对 Transformer 层做 checkpoint，对比显存节省和速度损失
+- **Gradient Accumulation**：多步累积梯度再 update，模拟更大 batch size
+
+每个实验输出对比结果到 `experiments/`，并更新对应文档。
+
+### Phase 4：通信算子 Benchmark
+
+> **目标：** 量化分析分布式训练中的通信开销。
+
+- `all_reduce_bench.py` / `all_gather_bench.py` / `reduce_scatter_bench.py`：测试不同 tensor size 下的延迟和带宽
+- 统一 benchmark 框架：遍历多种 tensor size，输出 CSV
+- 启动脚本 `scripts/run_comm_bench.sh`
+
+### Phase 5：Profiler 性能分析
+
+> **目标：** 用 torch.profiler 深入分析训练瓶颈。
+
+- `torch_profiler_runner.py`：封装 profiler 启动、配置和结果导出
+- `memory_tracker.py`：`torch.cuda.memory_stats()` 跟踪显存变化
+- 在训练脚本中集成 profiler，生成 Chrome trace 和 TensorBoard 可视化
+- 编写 `docs/profiler_report.md` 分析报告
+
+### Phase 6：文档与实验报告
+
+> **目标：** 把实验结果整理成高质量技术文档。
+
+- `docs/ddp_vs_fsdp.md`：DDP vs FSDP 原理对比、实验数据、结论
+- `docs/fsdp_mechanism.md`：FSDP 参数 flatten、sharding、通信流程解析
+- `docs/communication_analysis.md`：通信算子 benchmark 结果分析
+- `docs/profiler_report.md`：profiler 分析结果
+- `experiments/figures/` 中生成对比图表
+
+### Phase 7：高级扩展（可选）
+
+- **mini-FSDP 原型**：不依赖 PyTorch FSDP，手动实现参数分片、all-gather 前向、reduce-scatter 反向
+- **Megatron-style Tensor Parallel**：实现 `ColumnParallelLinear` 和 `RowParallelLinear`，理解张量并行通信模式
+
+### 推荐开发顺序
+
+```
+Phase 1 (Step 1.1 → 1.2 → 1.3)   ← 当前最优先，先跑通单卡
+Phase 2 (Step 2.1 → 2.2 → 2.3)   ← 核心功能，DDP 和 FSDP 对比
+Phase 3                            ← 进阶实验，丰富项目内容
+Phase 4                            ← 通信 benchmark，独立模块
+Phase 5                            ← profiler 分析
+Phase 6                            ← 文档整理
+Phase 7                            ← 高级扩展，加分项
+```
 
 ---
 
@@ -263,18 +377,6 @@ MiniTrainSys：面向双 GPU 环境的分布式训练系统与性能剖析框架
 ```
 
 ---
-
-## 当前状态
-
-当前仓库处于初始化阶段，第一版目标是先跑通以下内容：
-
-1. TinyTransformer 模型；
-2. single GPU 训练；
-3. 2-GPU DDP 训练；
-4. 2-GPU FSDP 训练；
-5. 基础显存和吞吐统计；
-6. 初步 profiler 分析；
-7. DDP vs FSDP 对比文档。
 
 ---
 
