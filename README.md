@@ -6,8 +6,8 @@ MiniTrainSys 是一个面向双 GPU 环境的轻量级分布式训练系统与�
 
 本项目基于 PyTorch 构建，目标不是训练超大规模模型，而是在有限 GPU 资源下系统分析深度学习训练中的显存占用、训练吞吐、通信开销和性能瓶颈。
 
-项目主要支持 single GPU、DDP、FSDP、通信算子 benchmark 和 torch.profiler 性能分析，
-并计划进一步扩展 mini-FSDP 与 Megatron-style Tensor Parallel 原型。
+项目支持 single GPU、DDP、FSDP、通信算子 benchmark、torch.profiler 性能分析、
+mini-FSDP 参数分片原型和 Megatron-style Tensor Parallel 原型。
 
 本项目适合作为 AI Infra、深度学习系统、高性能训练和分布式训练方向的学习与简历项目。
 
@@ -31,20 +31,21 @@ MiniTrainSys 关注以下核心问题：
 
 ## 功能特性
 
-当前计划支持以下功能：
+已实现的功能：
 
 - Single GPU 训练 baseline
 - 2-GPU DistributedDataParallel 训练
-- 2-GPU FullyShardedDataParallel 训练
+- 2-GPU FullyShardedDataParallel 训练（支持 autocast AMP 和 FSDP MixedPrecision）
 - step time、throughput、peak memory 等指标记录
-- mixed precision 训练实验
+- mixed precision 训练实验（autocast AMP / FSDP MixedPrecision）
 - activation checkpointing 显存优化实验
 - gradient accumulation 实验
-- torch.profiler 性能剖析
+- torch.profiler 性能剖析 + 显存追踪
 - all-reduce / all-gather / reduce-scatter 通信算子 benchmark
-- mini-FSDP 最小原型
+- mini-FSDP 参数分片训练原型
 - Megatron-style ColumnParallelLinear / RowParallelLinear 原型
-- 实验结果 CSV、图表和文档报告
+- 实验结果 CSV、可视化图表和文档报告
+- 单元测试（pytest）
 
 ---
 
@@ -99,7 +100,16 @@ MiniTrainSys/
 │   ├── mini_fsdp.md                 # mini-FSDP 原型说明
 │   ├── tensor_parallel.md           # Tensor Parallel 原型说明
 │   └── roadmap.md                   # 项目进度记录
-└── tests/
+├── tests/
+│   ├── test_model.py                # 模型单元测试
+│   ├── test_utils.py                # 公共工具单元测试
+│   ├── test_shard.py                # 参数分片单元测试
+│   └── test_parallel_linear.py      # Tensor Parallel 单元测试
+├── scripts/
+│   ├── ...
+│   └── plot_results.py              # 实验结果可视化
+├── Makefile                         # 便捷命令
+└── pyproject.toml                   # pytest 配置
 ```
 
 ---
@@ -585,7 +595,7 @@ MiniTrainSys：面向双 GPU 环境的分布式训练系统与性能剖析框架
 - 记录 step time、throughput、peak memory 等指标，分析不同训练策略在显存占用、训练吞吐和通信开销上的 trade-off。
 - 基于 torch.profiler 采集 forward、backward、optimizer step、CUDA kernel 与通信算子耗时，生成可复现实验报告。
 - 实现 all-reduce、all-gather、reduce-scatter 通信算子 benchmark，并结合 DDP/FSDP 解释分布式训练通信瓶颈。
-- 计划实现 mini-FSDP 与 Megatron-style Tensor Parallel Linear 原型，用于理解主流训练框架的底层机制。
+- 实现 mini-FSDP 参数分片原型与 Megatron-style Tensor Parallel Linear 原型，用于理解主流训练框架的底层机制。
 ```
 
 ---

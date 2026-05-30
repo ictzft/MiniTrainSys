@@ -261,3 +261,45 @@ RowParallel：权重按输入维度切分，前向 all-reduce，反向无通信
 |---|---|
 | `docs/mini_fsdp.md` | mini-FSDP 原理、实现、与 PyTorch FSDP 对比 |
 | `docs/tensor_parallel.md` | Tensor Parallel 原理、两种并行方式、自定义 Autograd |
+
+---
+
+## 单元测试与可视化 ✅
+
+**完成时间：** 2026-05-30
+
+### 单元测试
+
+| 文件 | 测试内容 | 测试用例数 |
+|---|---|---|
+| `tests/test_model.py` | TinyTransformer 模型（forward/loss/backward/checkpointing） | 8 |
+| `tests/test_utils.py` | 公共工具（config/数据集/学习率/指标记录） | 8 |
+| `tests/test_shard.py` | 参数分片逻辑（flatten/分片/拼接还原） | 6 |
+| `tests/test_parallel_linear.py` | Tensor Parallel Linear（Column/Row/组合） | 7 |
+
+运行方式：`pytest tests/ -v` 或 `make test`
+
+### 可视化脚本
+
+`scripts/plot_results.py`：读取 experiments/ 下的 CSV，生成对比图表。
+
+| 输出文件 | 内容 |
+|---|---|
+| `experiments/figures/step_time_comparison.png` | step time 柱状图 |
+| `experiments/figures/throughput_comparison.png` | 吞吐量柱状图 |
+| `experiments/figures/memory_comparison.png` | 显存柱状图 |
+| `experiments/figures/loss_curve.png` | loss 曲线对比图 |
+| `experiments/figures/summary.csv` | 实验结果汇总表 |
+
+运行方式：`python scripts/plot_results.py` 或 `make plot`
+
+### 项目配置
+
+| 文件 | 内容 |
+|---|---|
+| `pyproject.toml` | pytest 配置（测试路径、输出格式） |
+| `Makefile` | 便捷命令（test/train/plot/clean） |
+| `models/__init__.py` | 模块初始化 |
+| `train/__init__.py` | 模块初始化 |
+| `communication/__init__.py` | 模块初始化 |
+| `profiler/__init__.py` | 模块初始化 |
