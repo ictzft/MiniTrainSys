@@ -128,6 +128,57 @@ pip install torch torchvision torchaudio
 
 ---
 
+## 环境检查
+
+在跑正式实验之前，先确认 GPU、CUDA、PyTorch 和 NCCL 通信后端都可用。
+
+### 1. 确认 GPU 信息
+
+```bash
+nvidia-smi
+```
+
+预期输出应包含 2 块 V100（或你使用的 GPU 型号），驱动版本和 CUDA 版本。
+
+### 2. 确认 PyTorch 和 CUDA
+
+```bash
+python -c "
+import torch
+print('PyTorch version:', torch.__version__)
+print('CUDA available:', torch.cuda.is_available())
+print('CUDA device count:', torch.cuda.device_count())
+for i in range(torch.cuda.device_count()):
+    print(f'  GPU {i}: {torch.cuda.get_device_name(i)}')
+print('CUDA version:', torch.version.cuda)
+"
+```
+
+预期输出：
+- `CUDA available: True`
+- `CUDA device count: 2`
+- 每块 GPU 显示 `Tesla V100`（或对应型号）
+
+### 3. 确认 NCCL 通信后端
+
+```bash
+python -c "import torch.distributed as dist; print('NCCL available:', dist.is_nccl_available())"
+```
+
+预期输出：`NCCL available: True`
+
+NCCL 是 PyTorch GPU 分布式训练推荐的通信后端，DDP 和 FSDP 都依赖它进行多卡梯度同步和参数分片通信。
+
+### 4. 安装 Python 依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+如果以上检查全部通过，即可进入 Phase 1 开始实现代码。
+
 ## 快速开始
 
 ### 1. Single GPU 训练
