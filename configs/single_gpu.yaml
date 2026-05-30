@@ -1,0 +1,35 @@
+# Single GPU 训练配置
+# 用于建立 baseline，与 DDP / FSDP 对比
+
+# ---- 模型超参 ----
+model:
+  vocab_size: 30522
+  d_model: 256
+  nhead: 8
+  num_layers: 4
+  dim_feedforward: 1024
+  max_seq_len: 512
+  dropout: 0.1
+
+# ---- 训练超参 ----
+training:
+  batch_size: 8
+  max_steps: 1000
+  lr: 1.0e-4
+  weight_decay: 0.01
+  warmup_steps: 100
+  grad_clip: 1.0
+  log_interval: 10
+
+# ---- 数据 ----
+data:
+  # 当前使用随机数据，后续可替换为真实数据集
+  use_random: true
+  seq_len: 512
+  vocab_size: 30522
+
+# ---- 日志与输出 ----
+logging:
+  log_dir: "experiments/logs"
+  save_metrics: true
+  metrics_csv: "experiments/single_gpu_metrics.csv"
