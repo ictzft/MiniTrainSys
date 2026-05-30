@@ -212,14 +212,19 @@ experiments/logs/memory_timeline.csv          # 显存时间线
 
 ---
 
-## Phase 6：文档与实验报告 🔲
+## Phase 6：文档与实验报告 ✅
 
-**状态：** 待实现
+**完成时间：** 2026-05-30
 
-- docs/ddp_vs_fsdp.md
-- docs/fsdp_mechanism.md
-- docs/communication_analysis.md
-- docs/profiler_report.md
+### 已完成
+
+| 文档 | 内容 | 行数 |
+|---|---|---|
+| `docs/ddp_vs_fsdp.md` | DDP vs FSDP 核心区别、工作流程、显存分析、使用场景 | ~90 行 |
+| `docs/fsdp_mechanism.md` | 参数分片/All-Gather/Reduce-Scatter 机制、ShardingStrategy 对比 | ~120 行 |
+| `docs/communication_analysis.md` | 三大通信算子解析、benchmark 实现和运行方式 | ~115 行 |
+| `docs/profiler_report.md` | Profiler 工具说明、使用方式、分析维度、示例输出 | ~90 行 |
+| `docs/roadmap.md` | 各 Phase 进度记录和实现细节 | ~230 行 |
 
 ---
 

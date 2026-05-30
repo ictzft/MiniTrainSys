@@ -273,7 +273,7 @@ bash scripts/run_comm_bench.sh
 
 ## 当前状态
 
-**Phase 1~5 已完成** — 训练模式 + 进阶技术 + 通信 benchmark + Profiler 均已实现。
+**Phase 1~6 已完成** — 训练模式 + 进阶技术 + 通信 benchmark + Profiler + 文档均已实现。
 
 已实现：
 - `models/tiny_transformer.py`：小型 Transformer 语言模型（~17M 参数），支持 activation checkpointing
@@ -281,9 +281,9 @@ bash scripts/run_comm_bench.sh
 - `communication/`：all-reduce / all-gather / reduce-scatter 通信算子 benchmark
 - `profiler/`：torch.profiler 封装 + 显存追踪器
 - `configs/`：6 个配置文件（3 baseline + 3 进阶技术实验）
-- `docs/`：完整的项目文档
+- `docs/`：5 篇完整技术文档（DDP vs FSDP、FSDP 机制、通信分析、Profiler 报告、进度记录）
 
-待实现：Phase 6（文档整理）和 Phase 7（高级扩展），详见下方开发计划。
+待实现：Phase 7（mini-FSDP / Tensor Parallel 高级扩展），详见下方开发计划。
 
 ---
 
@@ -457,15 +457,15 @@ bash scripts/run_comm_bench.sh
 
 编写 `docs/profiler_report.md`，用图表和数据说明训练瓶颈在哪里。
 
-### Phase 6：文档与实验报告
+### Phase 6：文档与实验报告 ✅ 已完成
 
 > **目标：** 把实验结果整理成高质量技术文档。
 
-- `docs/ddp_vs_fsdp.md`：DDP vs FSDP 原理对比、实验数据、结论
-- `docs/fsdp_mechanism.md`：FSDP 参数 flatten、sharding、通信流程解析
-- `docs/communication_analysis.md`：通信算子 benchmark 结果分析
-- `docs/profiler_report.md`：profiler 分析结果
-- `experiments/figures/` 中生成对比图表
+- `docs/ddp_vs_fsdp.md`：DDP vs FSDP 原理对比、工作流程、显存分析
+- `docs/fsdp_mechanism.md`：FSDP 参数分片、All-Gather/Reduce-Scatter 机制解析
+- `docs/communication_analysis.md`：通信算子解析、benchmark 实现和运行方式
+- `docs/profiler_report.md`：Profiler 工具说明、使用方式、分析维度
+- `docs/roadmap.md`：各 Phase 进度记录和实现细节
 
 ### Phase 7：高级扩展（可选）
 
