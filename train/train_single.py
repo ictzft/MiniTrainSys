@@ -5,9 +5,11 @@ Single GPU 训练脚本 — 建立 baseline，与 DDP / FSDP 对比。
     - AMP mixed precision（配置 amp.enabled=true）
     - Activation checkpointing（配置 model.use_activation_checkpointing=true）
     - Gradient accumulation（配置 training.gradient_accumulation_steps=N）
+    - torch.profiler 性能分析（--profile 参数）
 
 用法：
     python train/train_single.py --config configs/single_gpu.yaml
+    python train/train_single.py --config configs/single_gpu.yaml --profile
 """
 
 import argparse
@@ -23,13 +25,27 @@ from models.tiny_transformer import build_model
 from train.utils import build_dataloader, get_lr, load_config, MetricsRecorder
 
 
-def train(config: dict):
+def train(config: dict, profile: bool = False):
     """Single GPU 训练主函数。"""
     train_cfg = config["training"]
     log_cfg = config["logging"]
     amp_cfg = config.get("amp", {})
     use_amp = amp_cfg.get("enabled", False)
     accum_steps = train_cfg.get("gradient_accumulation_steps", 1)
+
+    # ---- Profiler & Memory Tracker ----
+    profiler = None
+    memory_tracker = None
+    if profile:
+        from profiler.torch_profiler_runner import SimpleProfiler
+        from profiler.memory_tracker import MemoryTracker
+
+        profiler = SimpleProfiler(
+            log_dir=os.path.join(log_cfg.get("log_dir", "experiments/logs"), "profiler"),
+            num_steps=20,
+            start_step=10,
+        )
+        memory_tracker = MemoryTracker()
 
     # ---- 设备 ----
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -55,6 +71,8 @@ def train(config: dict):
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
     print(f"AMP: {'ON (fp16)' if use_amp else 'OFF (fp32)'}")
     print(f"Gradient accumulation steps: {accum_steps}")
+    if profile:
+        print(f"Profiler: ON (step 10~29)")
 
     # ---- 数据 ----
     dataloader = build_dataloader(config)
@@ -69,6 +87,12 @@ def train(config: dict):
     print("-" * 70)
 
     for step in range(1, train_cfg["max_steps"] + 1):
+        # Profiler step start
+        if profiler:
+            profiler.step_start(step)
+        if memory_tracker:
+            memory_tracker.step_start(step)
+
         t_start = time.perf_counter()
 
         # ---- Gradient Accumulation 循环 ----
@@ -82,12 +106,10 @@ def train(config: dict):
             input_ids = input_ids.to(device)
             labels = labels.to(device)
 
-            # AMP forward
             with torch.amp.autocast("cuda", enabled=use_amp):
                 output = model(input_ids, labels=labels)
-                loss = output["loss"] / accum_steps  # 梯度累积时 loss 需要除以步数
+                loss = output["loss"] / accum_steps
 
-            # AMP backward
             scaler.scale(loss).backward()
 
         # ---- 梯度裁剪 + Optimizer step ----
@@ -97,7 +119,6 @@ def train(config: dict):
                 model.parameters(), train_cfg["grad_clip"]
             )
 
-        # 更新学习率
         lr = get_lr(step, train_cfg["warmup_steps"], train_cfg["max_steps"], train_cfg["lr"])
         for pg in optimizer.param_groups:
             pg["lr"] = lr
@@ -109,11 +130,16 @@ def train(config: dict):
         t_end = time.perf_counter()
         step_time = t_end - t_start
 
+        # Profiler step end
+        if profiler:
+            profiler.step_end(step)
+        if memory_tracker:
+            memory_tracker.step_end(step)
+
         # ---- 日志 ----
         if step % train_cfg["log_interval"] == 0 or step == 1:
             batch_size = input_ids.size(0)
             seq_len = input_ids.size(1)
-            # 有效 batch = micro_batch × accum_steps
             effective_batch = batch_size * accum_steps
             throughput = effective_batch / step_time
             tokens_per_sec = effective_batch * seq_len / step_time
@@ -152,16 +178,25 @@ def train(config: dict):
         print(f"训练完成。GPU 峰值显存: {peak_mem:.2f} GB")
     else:
         print("训练完成。（CPU 模式）")
+
+    # 保存指标
     metrics.save()
+
+    # Profiler 输出
+    if memory_tracker:
+        memory_tracker.save(os.path.join(log_cfg.get("log_dir", "experiments/logs"), "memory_timeline.csv"))
+        memory_tracker.print_summary()
+        memory_tracker.print_timeline()
 
 
 def main():
     parser = argparse.ArgumentParser(description="Single GPU 训练")
     parser.add_argument("--config", type=str, required=True, help="配置文件路径")
+    parser.add_argument("--profile", action="store_true", help="启用 torch.profiler 性能分析")
     args = parser.parse_args()
 
     config = load_config(args.config)
-    train(config)
+    train(config, profile=args.profile)
 
 
 if __name__ == "__main__":

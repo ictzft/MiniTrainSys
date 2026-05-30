@@ -164,13 +164,51 @@
 
 ---
 
-## Phase 5：Profiler 性能分析 🔲
+## Phase 5：Profiler 性能分析 ✅
 
-**状态：** 待实现
+**完成时间：** 2026-05-30
 
-- torch_profiler_runner.py
-- memory_tracker.py
-- Chrome trace / TensorBoard 可视化
+### 已实现
+
+| 文件 | 内容 |
+|---|---|
+| `profiler/torch_profiler_runner.py` | ProfilerRunner + SimpleProfiler，封装 torch.profiler |
+| `profiler/memory_tracker.py` | MemoryTracker，记录显存随 step 的变化 |
+
+### 功能
+
+**torch_profiler_runner.py：**
+- 按 step 范围启停 profiler（默认 step 10~29）
+- 导出 Chrome trace JSON（在 chrome://tracing 查看时间线）
+- 导出 op 统计 CSV（按 CUDA 耗时排序）
+- 打印 Top 10 最耗时 op
+
+**memory_tracker.py：**
+- 每步记录 start/end allocated、reserved 显存
+- 记录峰值显存
+- 导出显存时间线 CSV
+- 打印显存摘要和变化趋势
+
+### 使用方式
+
+```bash
+# Single GPU + profiler
+python train/train_single.py --config configs/single_gpu.yaml --profile
+
+# DDP + profiler
+torchrun --nproc_per_node=2 train/train_ddp.py --config configs/ddp_2gpu.yaml --profile
+
+# FSDP + profiler
+torchrun --nproc_per_node=2 train/train_fsdp.py --config configs/fsdp_2gpu.yaml --profile
+```
+
+### 输出文件
+
+```
+experiments/logs/profiler/trace.json          # Chrome trace（浏览器加载）
+experiments/logs/profiler/op_stats.csv        # op 耗时统计
+experiments/logs/memory_timeline.csv          # 显存时间线
+```
 
 ---
 

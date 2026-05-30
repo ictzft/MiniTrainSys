@@ -88,7 +88,7 @@ def wrap_model_with_fsdp(model: torch.nn.Module) -> FSDP:
 # 训练循环
 # ============================================================
 
-def train(config: dict, local_rank: int):
+def train(config: dict, local_rank: int, profile: bool = False):
     train_cfg = config["training"]
     log_cfg = config["logging"]
     amp_cfg = config.get("amp", {})
@@ -99,6 +99,18 @@ def train(config: dict, local_rank: int):
     world_size = dist.get_world_size()
     device = torch.device(f"cuda:{local_rank}")
     is_main = rank == 0
+
+    # ---- Profiler（仅 rank 0）----
+    profiler = None
+    memory_tracker = None
+    if profile and is_main:
+        from profiler.torch_profiler_runner import SimpleProfiler
+        from profiler.memory_tracker import MemoryTracker
+        profiler = SimpleProfiler(
+            log_dir=os.path.join(log_cfg.get("log_dir", "experiments/logs"), "profiler"),
+            num_steps=20, start_step=10,
+        )
+        memory_tracker = MemoryTracker()
 
     if is_main:
         print(f"FSDP 训练 | world_size={world_size} | FULL_SHARD")
@@ -150,6 +162,10 @@ def train(config: dict, local_rank: int):
 
     for step in range(1, train_cfg["max_steps"] + 1):
         sampler.set_epoch(step)
+        if profiler:
+            profiler.step_start(step)
+        if memory_tracker:
+            memory_tracker.step_start(step)
         t_start = time.perf_counter()
 
         # ---- Gradient Accumulation 循环 ----
@@ -187,6 +203,11 @@ def train(config: dict, local_rank: int):
         dist.barrier()
         t_end = time.perf_counter()
         step_time = t_end - t_start
+
+        if profiler:
+            profiler.step_end(step)
+        if memory_tracker:
+            memory_tracker.step_end(step)
 
         # ---- 日志 ----
         if is_main and (step % train_cfg["log_interval"] == 0 or step == 1):
@@ -227,6 +248,9 @@ def train(config: dict, local_rank: int):
         peak_mem = torch.cuda.max_memory_allocated() / 1024**3
         print(f"训练完成。GPU 峰值显存: {peak_mem:.2f} GB")
         metrics.save()
+        if memory_tracker:
+            memory_tracker.save(os.path.join(log_cfg.get("log_dir", "experiments/logs"), "memory_timeline.csv"))
+            memory_tracker.print_summary()
 
     cleanup_distributed()
 
@@ -238,11 +262,12 @@ def train(config: dict, local_rank: int):
 def main():
     parser = argparse.ArgumentParser(description="FSDP 训练")
     parser.add_argument("--config", type=str, required=True)
+    parser.add_argument("--profile", action="store_true", help="启用 torch.profiler 性能分析")
     args = parser.parse_args()
 
     config = load_config(args.config)
     local_rank = setup_distributed()
-    train(config, local_rank)
+    train(config, local_rank, profile=args.profile)
 
 
 if __name__ == "__main__":

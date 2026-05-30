@@ -273,16 +273,17 @@ bash scripts/run_comm_bench.sh
 
 ## 当前状态
 
-**Phase 1~4 已完成** — 训练模式 + 进阶技术 + 通信 benchmark 均已实现。
+**Phase 1~5 已完成** — 训练模式 + 进阶技术 + 通信 benchmark + Profiler 均已实现。
 
 已实现：
 - `models/tiny_transformer.py`：小型 Transformer 语言模型（~17M 参数），支持 activation checkpointing
-- `train/`：Single GPU / DDP / FSDP 三种训练脚本，支持 AMP / checkpointing / gradient accumulation
+- `train/`：Single GPU / DDP / FSDP 三种训练脚本，支持 AMP / checkpointing / gradient accumulation / profiler
 - `communication/`：all-reduce / all-gather / reduce-scatter 通信算子 benchmark
+- `profiler/`：torch.profiler 封装 + 显存追踪器
 - `configs/`：6 个配置文件（3 baseline + 3 进阶技术实验）
-- `docs/`：DDP vs FSDP 对比、FSDP 机制解析、通信分析文档
+- `docs/`：完整的项目文档
 
-待实现：Phase 5（Profiler）及后续阶段，详见下方开发计划。
+待实现：Phase 6（文档整理）和 Phase 7（高级扩展），详见下方开发计划。
 
 ---
 
@@ -425,7 +426,7 @@ bash scripts/run_comm_bench.sh
 - 大 tensor：bandwidth-bound，接近 NVLink / PCIe 带宽上限
 - all-reduce = reduce-scatter + all-gather，理论上延迟约为两者之和
 
-### Phase 5：Profiler 性能分析
+### Phase 5：Profiler 性能分析 ✅ 已完成
 
 > **目标：** 用 torch.profiler 深入分析训练瓶颈，量化每个阶段的耗时构成。
 
